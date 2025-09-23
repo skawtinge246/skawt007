@@ -1,1 +1,121 @@
 Sample file to be uploaded into S3 this is for skawt recordatory 
+
+____________________________________________________________Engineer Pedro JML
+
+How to Integrate AWS Secret Manager to Azure DevOps Pipeline
+
+You want to use AWS secret manager to store your secret, but what if you need to use those secret values somewhere else like GCP, Azure.
+
+In this article, I’m going to show you how you can integrate Azure DevOps pipeline to AWS secret manager to use those secret values in the Azure pipeline.
+Prerequisite
+
+You need to have an Azure DevOps account and an AWS account.
+Storing Secrets in AWS Secret Manager
+
+Search for Secret Manager and Click on the “Store a new Secret.” You’ll get three options:
+
+1. Credentials for RDS database
+
+2. Credentials for other databases
+
+3. Other Type of Secrets.
+
+For this tutorial, we will go with the third option.
+Press enter or click to view image in full size
+
+In the Secret Key/Value part put your secrets and hit Next and add a meaningful name for “Secret Name.” We will be using this name to retrieve secrets in the azure pipeline. Other options are optional and you can proceed.
+Press enter or click to view image in full size
+
+Then click next and you can see your new secret on the list. Now our secret is secure and encrypted by AWS secret manager.
+Create an IAM user and apply secret manager read/write policy to it
+
+For retrieving secrets from Azure DevOps pipeline, we need to create an IAM user with secret manager policy access.
+
+Fill a name and for Access type selects Programmatic access.
+Press enter or click to view image in full size
+
+For the sake of simplicity, we can select Attach existing policies directly for permissions. The user should be able to read and write from the secret manager so we will assign SecretsManagerReadWrite policy.
+Press enter or click to view image in full size
+
+After this step, you can choose some meaningful tags or you can skip it. Review the changes and create the user.
+Get Alireza David’s stories in your inbox
+
+Join Medium for free to get updates from this writer.
+
+In this step, you need to write down the Access key and Secret key for further usage.
+Press enter or click to view image in full size
+Integrate Azure DevOps with AWS
+
+Now we can leave the AWS console and open the Azure DevOps panel.
+Azure DevOps has a good feature called Service connections to integrate a bunch of services to your Azure environment.
+
+Go to your azure panel and select an organization then click on Project settings.
+
+You can find Service connections from the left panel under the Pipelines section.
+
+Here you can see all of the services you previously added.
+Click on New service connection. This is a list of services that we can easily integrate with Azure DevOps. We select AWS.
+
+In this step, we need Access key and Secret key that we created in the previews steps (Note: If you want to assume a role you can pass ARN of the role to the Role to Assume input). for the Service connection name, we should keep the name for further usage because we will use this name in the pipeline. We can skip optional inputs (note: check Grant access permission to all pipelines) now we can hit save.
+
+We can see the AWS service connection.
+Press enter or click to view image in full size
+Create a repo and write azure-pipeline.yml
+
+Now if you don’t have a repo in azure DevOps, you need to create it before we can continue.
+After creating a repo we need to write the azure-pipeline.yml where we can retrieve our secret from AWS secret manager and use the value in our pipeline. azure-pipeline.yml file can be like this:
+
+name: Test
+variables:
+  var1: value1
+trigger:
+- master
+jobs:
+- job: One
+  steps:
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y jq
+      python -m pip install --upgrade pip==9.0.3 setuptools wheel
+      pip install awscli --user
+    displayName: 'Install tools'
+  - task: AWSShellScript@1
+    inputs:
+      awsCredentials: 'Access To AWS' # Serivce connection name
+      regionName: 'eu-west-1'
+      scriptType: 'inline'
+      inlineScript: |
+        /home/vsts/.local/bin/aws secretsmanager get-secret-value --secret-id dev/pass | jq -r '.SecretString' | jq -r '.password'
+
+Note: we configured our pipeline to be triggered after we push the code to the master branch. if you want to change it to the specific branch you need to change the trigger directive.
+
+The magic happens in the input section where we can access AWS secret manager with CLI
+After we push the code to the master branch the pipeline will automatically start and we can see the secure value in the stdout.
+Press enter or click to view image in full size
+
+If you need to assign the secret value to the variable to use it in the further steps in the same job of the pipeline you can use it like this:
+
+name: Test
+variables:
+  var1: value1
+trigger:
+- master
+jobs:
+- job: One
+  steps:
+  - script: |
+      sudo apt-get update
+      sudo apt-get install -y jq
+      python -m pip install --upgrade pip==9.0.3 setuptools wheel
+      sudo pip install awscli --user
+    displayName: 'Install tools'
+  - task: AWSShellScript@1
+    name: SecretVariable
+    inputs:
+      awsCredentials: 'Access To AWS'
+      regionName: 'eu-west-1'
+      scriptType: 'inline'
+      inlineScript: |
+        SECRET=$(aws secretsmanager get-secret-value --secret-id test/pass | jq -r '.SecretString' | jq -r '.password')
+        echo "##vso[task.setvariable variable=SECRET]$SECRET"  - script: |
+      echo $SECRET
