@@ -38,7 +38,7 @@ stages:
 
     - task: Bash@3
       name: uploadToS3
-      displayName: 'Upload files to S3 bucket'
+      displayName: 'Upload files to S3 bucket ya chale skawt'
       inputs:
         targetType: 'inline'
         script: |
